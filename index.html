@@ -174,16 +174,15 @@ const appStyles = `
 // --- KONFIGURATION ---
 const STATION_PASSWORD = "112"; 
 
-// VIKTIGT: Om du kör denna kod utanför min miljö (t.ex. på GitHub Pages),
-// så kommer den inte ha databas-nycklarna. Du kan klistra in din Firebase-config här nedanför.
-// Om den lämnas tom körs appen i "Demoläge" (ingen data sparas).
+// VIKTIGT: Här har jag lagt in nycklarna från din bild!
 const MANUAL_FIREBASE_CONFIG = {
-  // apiKey: "DIN_API_KEY",
-  // authDomain: "DITT_PROJECT_ID.firebaseapp.com",
-  // projectId: "DITT_PROJECT_ID",
-  // storageBucket: "DITT_PROJECT_ID.appspot.com",
-  // messagingSenderId: "...",
-  // appId: "..."
+  apiKey: "AIzaSyB8aujVryb93dqWxnQk2z3O0vgHQi5XY9A",
+  authDomain: "stationssyor.firebaseapp.com",
+  projectId: "stationssyor",
+  storageBucket: "stationssyor.firebasestorage.app",
+  messagingSenderId: "628579465876",
+  appId: "1:628579465876:web:dc868450ef2e13e8b1d281",
+  measurementId: "G-LN9XCK78SH"
 };
 
 const WEEKLY_TASKS_TEMPLATE = {
@@ -254,6 +253,7 @@ export default function StationChoresApp() {
     } catch (e) {}
     
     // 2. Försök läsa från manuell config (om användaren fyllt i den)
+    // OBS: Vi kollar om någon av nycklarna faktiskt är ifyllda och inte bortkommenterade
     if (MANUAL_FIREBASE_CONFIG && Object.keys(MANUAL_FIREBASE_CONFIG).length > 0) {
       return MANUAL_FIREBASE_CONFIG;
     }
@@ -313,6 +313,7 @@ export default function StationChoresApp() {
 
     if (!user || !db) return;
     
+    // Använd rätt sökväg för publika data: /artifacts/{appId}/public/data/{collection}
     const docRef = doc(collection(db, 'artifacts', appId, 'public', 'data', 'chores'), 'current_state');
 
     const unsubscribe = onSnapshot(docRef, async (snapshot) => {
