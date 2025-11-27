@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>StationssysslorXXX</title>
+  <title>Stationssysslor</title>
   
   <!-- 1. Hämta bibliotek -->
   <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
@@ -136,18 +136,15 @@
     const { useState, useEffect, useMemo } = React;
 
     // --- 1. STARTA FIREBASE ---
-    // INSTRUKTION: Gå till Firebase Console -> Project Settings.
-    // Välj "Config" (inte npm). Kopiera allt mellan måsvingarna { och }
-    // och klistra in det istället för min kommentar nedan.
+    // HÄR ÄR DIN KONFIGURATION:
     const MANUAL_FIREBASE_CONFIG = {
-     
-  apiKey: "AIzaSyB8aujVryb93dqWxnQk2z3OOvgHQi5XY9A",
-  authDomain: "stationssyor.firebaseapp.com",
-  projectId: "stationssyor",
-  storageBucket: "stationssyor.firebasestorage.app",
-  messagingSenderId: "628579465876",
-  appId: "1:628579465876:web:dc868450ef2e13e8b1d281",
-  measurementId: "G-LN9XCK78SH
+      apiKey: "AIzaSyB8aujVryb93dqWxnQk2z3OOvgHQi5XY9A",
+      authDomain: "stationssyor.firebaseapp.com",
+      projectId: "stationssyor",
+      storageBucket: "stationssyor.firebasestorage.app",
+      messagingSenderId: "628579465876",
+      appId: "1:628579465876:web:dc868450ef2e13e8b1d281",
+      measurementId: "G-LN9XCK78SH"
     };
 
     // Initiera bara om det inte redan är gjort
