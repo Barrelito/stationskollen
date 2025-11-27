@@ -12,7 +12,8 @@ import {
 import { 
   getAuth, 
   signInAnonymously, 
-  onAuthStateChanged 
+  onAuthStateChanged,
+  signInWithCustomToken
 } from 'firebase/auth';
 import { 
   CheckCircle2, 
@@ -22,45 +23,52 @@ import {
   Ambulance, 
   History,
   Lock,
-  X
+  WifiOff,
+  Database
 } from 'lucide-react';
 
 // --- STYLES (CSS) ---
-// Denna CSS gör att appen ser snygg ut utan extra installationer
 const appStyles = `
   * { box-sizing: border-box; }
   body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; color: #1e293b; }
   
   .app-container { min-height: 100vh; padding-bottom: 80px; }
   
-  /* LOGIN SCREEN */
-  .login-screen {
+  /* LOGIN & SETUP SCREENS */
+  .fullscreen-card {
     position: fixed; top: 0; left: 0; width: 100%; height: 100%;
     background-color: #0f172a;
     display: flex; align-items: center; justify-content: center;
     padding: 20px; z-index: 100;
   }
-  .login-card {
-    background: white; width: 100%; max-width: 360px;
+  .card-modal {
+    background: white; width: 100%; max-width: 400px;
     border-radius: 24px; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);
   }
-  .login-header {
-    background-color: #facc15; padding: 40px; display: flex; justify-content: center;
-  }
-  .login-body { padding: 32px; }
-  .login-title { text-align: center; font-size: 24px; font-weight: bold; margin: 0 0 8px 0; color: #0f172a; }
-  .login-subtitle { text-align: center; color: #64748b; margin-bottom: 24px; }
+  .card-header-yellow { background-color: #facc15; padding: 32px; display: flex; justify-content: center; }
+  .card-body { padding: 32px; }
+  .card-title { text-align: center; font-size: 24px; font-weight: bold; margin: 0 0 8px 0; color: #0f172a; }
+  .card-text { text-align: center; color: #64748b; margin-bottom: 24px; line-height: 1.5; }
+  
   .input-code {
     width: 100%; padding: 16px; font-size: 24px; text-align: center; letter-spacing: 4px;
     border: 2px solid #e2e8f0; border-radius: 12px; margin-bottom: 16px; outline: none;
   }
   .input-code:focus { border-color: #facc15; }
+  
   .btn-primary {
     width: 100%; background-color: #0f172a; color: white; border: none;
     padding: 16px; border-radius: 12px; font-size: 16px; font-weight: bold;
-    display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; transition: background 0.2s;
   }
   .btn-primary:hover { background-color: #1e293b; }
+  
+  .btn-secondary {
+    width: 100%; background-color: #f1f5f9; color: #475569; border: none;
+    padding: 16px; border-radius: 12px; font-size: 16px; font-weight: bold;
+    display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; margin-top: 12px;
+  }
+  
   .error-msg { color: #ef4444; text-align: center; font-size: 14px; margin-bottom: 12px; }
 
   /* MAIN APP */
@@ -79,13 +87,17 @@ const appStyles = `
   .btn-text { background: none; border: none; color: #94a3b8; font-size: 12px; cursor: pointer; }
   
   .main-content { max-width: 800px; margin: 0 auto; padding: 16px; display: flex; flex-direction: column; gap: 24px; }
+  .demo-banner {
+    background-color: #fff7ed; border: 1px solid #fed7aa; color: #c2410c;
+    padding: 12px; border-radius: 12px; font-size: 14px; text-align: center;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
 
-  /* CARDS */
+  /* CARDS & TASKS */
   .card { background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border: 1px solid #e2e8f0; }
   .card-header { padding: 16px; background-color: #f8fafc; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; }
   .card-title { margin: 0; font-size: 18px; font-weight: bold; color: #1e293b; display: flex; align-items: center; gap: 8px; }
   
-  /* TASK ITEMS */
   .task-list { display: flex; flex-direction: column; }
   .task-item {
     padding: 16px; display: flex; gap: 16px; align-items: flex-start;
@@ -162,6 +174,18 @@ const appStyles = `
 // --- KONFIGURATION ---
 const STATION_PASSWORD = "112"; 
 
+// VIKTIGT: Om du kör denna kod utanför min miljö (t.ex. på GitHub Pages),
+// så kommer den inte ha databas-nycklarna. Du kan klistra in din Firebase-config här nedanför.
+// Om den lämnas tom körs appen i "Demoläge" (ingen data sparas).
+const MANUAL_FIREBASE_CONFIG = {
+  // apiKey: "DIN_API_KEY",
+  // authDomain: "DITT_PROJECT_ID.firebaseapp.com",
+  // projectId: "DITT_PROJECT_ID",
+  // storageBucket: "DITT_PROJECT_ID.appspot.com",
+  // messagingSenderId: "...",
+  // appId: "..."
+};
+
 const WEEKLY_TASKS_TEMPLATE = {
   Tuesday: [
     { id: 'tue_1', text: 'Storrengöring ambulansen 9410', day: 'Tisdag' },
@@ -218,24 +242,77 @@ export default function StationChoresApp() {
   const [missedTasks, setMissedTasks] = useState<any[]>([]);
   const [signingTask, setSigningTask] = useState<string | null>(null);
   const [signerName, setSignerName] = useState("");
+  const [isDemoMode, setIsDemoMode] = useState(false);
 
-  const firebaseConfig = JSON.parse(process.env.REACT_APP_FIREBASE_CONFIG || '{}');
-  const configToUse = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : firebaseConfig;
+  // --- SÄKER KONFIGURATIONSHANTERING ---
+  const configToUse = useMemo(() => {
+    // 1. Försök läsa från global variabel (fungerar i preview här)
+    try {
+      if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+        return JSON.parse(__firebase_config);
+      }
+    } catch (e) {}
+    
+    // 2. Försök läsa från manuell config (om användaren fyllt i den)
+    if (MANUAL_FIREBASE_CONFIG && Object.keys(MANUAL_FIREBASE_CONFIG).length > 0) {
+      return MANUAL_FIREBASE_CONFIG;
+    }
+
+    // 3. Om inget hittas, returnera null -> aktiverar "Setup Screen" eller "Demoläge"
+    return null;
+  }, []);
+
   const appId = typeof __app_id !== 'undefined' ? __app_id : 'station-app';
 
-  const app = useMemo(() => initializeApp(configToUse), [configToUse]);
-  const auth = useMemo(() => getAuth(app), [app]);
-  const db = useMemo(() => getFirestore(app), [app]);
+  // Initiera Firebase bara om config finns
+  const app = useMemo(() => configToUse ? initializeApp(configToUse) : null, [configToUse]);
+  const auth = useMemo(() => app ? getAuth(app) : null, [app]);
+  const db = useMemo(() => app ? getFirestore(app) : null, [app]);
 
   useEffect(() => {
-    signInAnonymously(auth);
+    if (!auth) {
+      setIsDemoMode(true);
+      return;
+    }
+
+    const initAuth = async () => {
+      try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
+        }
+      } catch (err) {
+        console.error("Auth failed:", err);
+        // Fallback till demo om auth misslyckas
+        setIsDemoMode(true);
+      }
+    };
+    initAuth();
+    
     const savedSession = localStorage.getItem('station_unlocked');
     if (savedSession === 'true') setIsUnlocked(true);
-    return onAuthStateChanged(auth, setUser);
+    
+    return onAuthStateChanged(auth, (u) => {
+      if (u) {
+        setUser(u);
+        setIsDemoMode(false);
+      } else {
+        // Om vi inte får en användare, hamnar vi kanske här
+      }
+    });
   }, [auth]);
 
   useEffect(() => {
-    if (!user) return;
+    // Ladda data
+    if (isDemoMode) {
+      // I demoläge, skapa fake data
+      initializeLocalDemoData();
+      return;
+    }
+
+    if (!user || !db) return;
+    
     const docRef = doc(collection(db, 'artifacts', appId, 'public', 'data', 'chores'), 'current_state');
 
     const unsubscribe = onSnapshot(docRef, async (snapshot) => {
@@ -261,9 +338,24 @@ export default function StationChoresApp() {
           setMissedTasks(data.missedTasks || []);
         }
       }
+    }, (error) => {
+      console.error("Error fetching tasks:", error);
+      setIsDemoMode(true); // Om vi tappar access, gå till demo
+      initializeLocalDemoData();
     });
     return () => unsubscribe();
-  }, [user, db, appId]);
+  }, [user, db, appId, isDemoMode]);
+
+  const initializeLocalDemoData = () => {
+    // Skapar temporär data för visning om databas saknas
+    const freshTasks: any[] = [];
+    Object.entries(WEEKLY_TASKS_TEMPLATE).forEach(([day, taskList]) => {
+      taskList.forEach(task => freshTasks.push({ ...task, done: false, signedBy: '', completedAt: null, isAdHoc: false }));
+    });
+    ADHOC_TASKS.forEach(task => freshTasks.push({ ...task, done: false, signedBy: '', completedAt: null, isAdHoc: true }));
+    setTasks(freshTasks);
+    setMissedTasks([]); 
+  };
 
   const initializeNewWeek = async (docRef: any, weekId: string, carryOverTasks: any[], existingAdHoc: any[]) => {
     const freshTasks: any[] = [];
@@ -293,6 +385,23 @@ export default function StationChoresApp() {
 
   const confirmTask = async () => {
     if (!signingTask || !signerName.trim()) return;
+    
+    // DEMO MODE HANTERING
+    if (isDemoMode) {
+      const [listType, taskId] = signingTask.split(':');
+      const timestamp = new Date().toISOString();
+      const updateList = (list: any[]) => list.map(t => 
+        t.id === taskId ? { ...t, done: !t.done, signedBy: !t.done ? signerName : '', completedAt: !t.done ? timestamp : null } : t
+      );
+      if (listType === 'regular') setTasks(updateList(tasks));
+      else setMissedTasks(updateList(missedTasks));
+      
+      setSigningTask(null);
+      setSignerName("");
+      return;
+    }
+
+    // FIREBASE HANTERING
     const [listType, taskId] = signingTask.split(':');
     const docRef = doc(collection(db, 'artifacts', appId, 'public', 'data', 'chores'), 'current_state');
     const timestamp = new Date().toISOString();
@@ -395,6 +504,14 @@ export default function StationChoresApp() {
         </div>
       </header>
 
+      {/* DEMO MODE BANNER */}
+      {isDemoMode && (
+        <div className="demo-banner">
+          <WifiOff size={16} />
+          <span>Demoläge (Databas saknas) - Ändringar sparas ej</span>
+        </div>
+      )}
+
       <main className="main-content">
         
         {/* SLÄPANDE SYSSLOR */}
@@ -430,7 +547,7 @@ export default function StationChoresApp() {
                   key={task.id} 
                   task={task} 
                   onToggle={() => {
-                    if(task.done) { setSigningTask(`regular:${task.id}`); setSignerName(""); } // Quick undo prep
+                    if(task.done) { setSigningTask(`regular:${task.id}`); setSignerName(""); } 
                     else { startSigning(task.id, 'regular'); }
                   }} 
                 />
