@@ -1,598 +1,582 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { initializeApp } from 'firebase/app';
-import { 
-  getFirestore, 
-  collection, 
-  doc, 
-  onSnapshot, 
-  updateDoc, 
-  setDoc, 
-  Timestamp 
-} from 'firebase/firestore';
-import { 
-  getAuth, 
-  signInAnonymously, 
-  onAuthStateChanged,
-  signInWithCustomToken
-} from 'firebase/auth';
-import { 
-  CheckCircle2, 
-  AlertTriangle, 
-  Calendar, 
-  User, 
-  Ambulance, 
-  History,
-  Lock,
-  WifiOff,
-  Database
-} from 'lucide-react';
-
-// --- STYLES (CSS) ---
-const appStyles = `
-  * { box-sizing: border-box; }
-  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; color: #1e293b; }
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Stationssysslor</title>
   
-  .app-container { min-height: 100vh; padding-bottom: 80px; }
+  <!-- 1. Hämta React och Firebase från nätet (CDN) -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
   
-  /* LOGIN & SETUP SCREENS */
-  .fullscreen-card {
-    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-    background-color: #0f172a;
-    display: flex; align-items: center; justify-content: center;
-    padding: 20px; z-index: 100;
-  }
-  .card-modal {
-    background: white; width: 100%; max-width: 400px;
-    border-radius: 24px; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);
-  }
-  .card-header-yellow { background-color: #facc15; padding: 32px; display: flex; justify-content: center; }
-  .card-body { padding: 32px; }
-  .card-title { text-align: center; font-size: 24px; font-weight: bold; margin: 0 0 8px 0; color: #0f172a; }
-  .card-text { text-align: center; color: #64748b; margin-bottom: 24px; line-height: 1.5; }
-  
-  .input-code {
-    width: 100%; padding: 16px; font-size: 24px; text-align: center; letter-spacing: 4px;
-    border: 2px solid #e2e8f0; border-radius: 12px; margin-bottom: 16px; outline: none;
-  }
-  .input-code:focus { border-color: #facc15; }
-  
-  .btn-primary {
-    width: 100%; background-color: #0f172a; color: white; border: none;
-    padding: 16px; border-radius: 12px; font-size: 16px; font-weight: bold;
-    display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; transition: background 0.2s;
-  }
-  .btn-primary:hover { background-color: #1e293b; }
-  
-  .btn-secondary {
-    width: 100%; background-color: #f1f5f9; color: #475569; border: none;
-    padding: 16px; border-radius: 12px; font-size: 16px; font-weight: bold;
-    display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; margin-top: 12px;
-  }
-  
-  .error-msg { color: #ef4444; text-align: center; font-size: 14px; margin-bottom: 12px; }
+  <!-- Firebase Compat Libraries (Gör att det funkar direkt i webbläsaren) -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 
-  /* MAIN APP */
-  .header {
-    background-color: #0f172a; color: white; position: sticky; top: 0; z-index: 50;
-    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
-  }
-  .header-content {
-    max-width: 800px; margin: 0 auto; padding: 16px;
-    display: flex; align-items: center; justify-content: space-between;
-  }
-  .header-left { display: flex; align-items: center; gap: 12px; }
-  .icon-box { background-color: #facc15; padding: 8px; border-radius: 8px; color: #0f172a; display: flex; }
-  .header-title h1 { margin: 0; font-size: 18px; font-weight: bold; }
-  .header-title p { margin: 0; font-size: 12px; color: #94a3b8; font-family: monospace; }
-  .btn-text { background: none; border: none; color: #94a3b8; font-size: 12px; cursor: pointer; }
-  
-  .main-content { max-width: 800px; margin: 0 auto; padding: 16px; display: flex; flex-direction: column; gap: 24px; }
-  .demo-banner {
-    background-color: #fff7ed; border: 1px solid #fed7aa; color: #c2410c;
-    padding: 12px; border-radius: 12px; font-size: 14px; text-align: center;
-    display: flex; align-items: center; justify-content: center; gap: 8px;
-  }
-
-  /* CARDS & TASKS */
-  .card { background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border: 1px solid #e2e8f0; }
-  .card-header { padding: 16px; background-color: #f8fafc; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; }
-  .card-title { margin: 0; font-size: 18px; font-weight: bold; color: #1e293b; display: flex; align-items: center; gap: 8px; }
-  
-  .task-list { display: flex; flex-direction: column; }
-  .task-item {
-    padding: 16px; display: flex; gap: 16px; align-items: flex-start;
-    border-bottom: 1px solid #f1f5f9; cursor: pointer; transition: background 0.1s;
-  }
-  .task-item:last-child { border-bottom: none; }
-  .task-item:hover { background-color: #f8fafc; }
-  .task-item.done { background-color: rgba(34, 197, 94, 0.1); }
-  
-  .checkbox {
-    width: 28px; height: 28px; border-radius: 50%; border: 2px solid #cbd5e1;
-    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-    background: white;
-  }
-  .task-item.done .checkbox { background-color: #22c55e; border-color: #22c55e; color: white; }
-  .task-item.missed .checkbox { border-color: #fca5a5; }
-  
-  .task-text { flex: 1; }
-  .task-label { font-size: 16px; font-weight: 500; color: #1e293b; margin: 0; line-height: 1.4; }
-  .task-item.done .task-label { text-decoration: line-through; color: #94a3b8; }
-  
-  .meta-info { margin-top: 6px; display: flex; gap: 12px; font-size: 12px; align-items: center; }
-  .signed-tag {
-    display: inline-flex; align-items: center; gap: 4px; 
-    background-color: #dcfce7; color: #15803d; padding: 2px 8px; 
-    border-radius: 6px; font-weight: bold;
-  }
-  .missed-tag {
-    background-color: #fee2e2; color: #b91c1c; padding: 2px 8px;
-    border-radius: 6px; font-weight: bold;
-  }
-  .unsigned-text { color: #94a3b8; }
-
-  /* MISSED TASKS CARD */
-  .missed-card { border: 2px solid #fee2e2; background-color: #fef2f2; }
-  .missed-header { background-color: #fee2e2; color: #991b1b; }
-
-  /* ADHOC CARD */
-  .adhoc-header { background-color: #1e293b; color: white; }
-  .adhoc-title { color: white; }
-
-  /* MODAL */
-  .modal-overlay {
-    position: fixed; inset: 0; background-color: rgba(0,0,0,0.6);
-    display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 200;
-    backdrop-filter: blur(4px);
-  }
-  .modal-card {
-    background: white; width: 100%; max-width: 400px; border-radius: 16px;
-    padding: 24px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
-    animation: popIn 0.2s ease-out;
-  }
-  @keyframes popIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-  
-  .modal-title { margin: 0 0 8px 0; font-size: 20px; font-weight: bold; }
-  .modal-text { color: #64748b; margin: 0 0 24px 0; }
-  .input-name {
-    width: 100%; padding: 16px; border: 2px solid #e2e8f0; border-radius: 12px;
-    font-size: 18px; margin-bottom: 24px; outline: none;
-  }
-  .input-name:focus { border-color: #22c55e; }
-  .modal-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  .btn-cancel {
-    background-color: #f1f5f9; color: #475569; border: none; padding: 12px;
-    border-radius: 12px; font-weight: bold; cursor: pointer;
-  }
-  .btn-confirm {
-    background-color: #22c55e; color: white; border: none; padding: 12px;
-    border-radius: 12px; font-weight: bold; cursor: pointer;
-  }
-  .btn-confirm:disabled { opacity: 0.5; cursor: not-allowed; }
-`;
-
-// --- KONFIGURATION ---
-const STATION_PASSWORD = "112"; 
-
-// VIKTIGT: Här har jag lagt in nycklarna från din bild!
-const MANUAL_FIREBASE_CONFIG = {
-  apiKey: "AIzaSyB8aujVryb93dqWxnQk2z3O0vgHQi5XY9A",
-  authDomain: "stationssyor.firebaseapp.com",
-  projectId: "stationssyor",
-  storageBucket: "stationssyor.firebasestorage.app",
-  messagingSenderId: "628579465876",
-  appId: "1:628579465876:web:dc868450ef2e13e8b1d281",
-  measurementId: "G-LN9XCK78SH"
-};
-
-const WEEKLY_TASKS_TEMPLATE = {
-  Tuesday: [
-    { id: 'tue_1', text: 'Storrengöring ambulansen 9410', day: 'Tisdag' },
-    { id: 'tue_2', text: 'Storrengöring ambulansen 9420', day: 'Tisdag' },
-    { id: 'tue_3', text: 'Däckkontroll', day: 'Tisdag' },
-  ],
-  Wednesday: [
-    { id: 'wed_1', text: 'Rengöring Tvätthall', day: 'Onsdag' },
-    { id: 'wed_2', text: 'Rensa och rengöra båda kylskåpen, kasta omärkt mat', day: 'Onsdag' },
-    { id: 'wed_3', text: 'Torka bänkar, dörrar, lådor, rengör mikrovågsugnar och kaffebryggare', day: 'Onsdag' },
-  ],
-  Thursday: [
-    { id: 'thu_1', text: 'Storkontroll av ambulanserna 9410 & 9420 enl. packplan', day: 'Torsdag' },
-    { id: 'thu_2', text: 'Lägg sopsäckar i soptunnan i tvättstugan', day: 'Torsdag' },
-  ],
-  Friday: [
-    { id: 'fri_1', text: 'Rengöring vagnhall', day: 'Fredag' },
-  ],
-  Saturday: [
-    { id: 'sat_1', text: 'Kontrollera och städa reservbil/Flexbil 9030', day: 'Lördag' },
-    { id: 'sat_2', text: 'Provstarta 9030', day: 'Lördag' },
-    { id: 'sat_3', text: 'Tanka 9030 vid ½ tank', day: 'Lördag' },
-  ]
-};
-
-const ADHOC_TASKS = [
-  { id: 'ad_1', text: 'Tidningar (Släng/Sortera)', day: 'Vid behov' },
-  { id: 'ad_2', text: 'Pantburkar', day: 'Vid behov' },
-  { id: 'ad_3', text: 'Vattna blommor', day: 'Vid behov' },
-  { id: 'ad_4', text: 'Hämta post i postfacket', day: 'Vid behov' },
-];
-
-function getISOWeek(date: Date) {
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-  const dayNum = d.getUTCDay() || 7;
-  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-  return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
-}
-
-function getWeekId() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const week = getISOWeek(now);
-  return `${year}-W${week}`;
-}
-
-export default function StationChoresApp() {
-  const [user, setUser] = useState<any>(null);
-  const [isUnlocked, setIsUnlocked] = useState(false);
-  const [passwordInput, setPasswordInput] = useState("");
-  const [loginError, setLoginError] = useState(false);
-  const [tasks, setTasks] = useState<any[]>([]);
-  const [missedTasks, setMissedTasks] = useState<any[]>([]);
-  const [signingTask, setSigningTask] = useState<string | null>(null);
-  const [signerName, setSignerName] = useState("");
-  const [isDemoMode, setIsDemoMode] = useState(false);
-
-  // --- SÄKER KONFIGURATIONSHANTERING ---
-  const configToUse = useMemo(() => {
-    // 1. Försök läsa från global variabel (fungerar i preview här)
-    try {
-      if (typeof __firebase_config !== 'undefined' && __firebase_config) {
-        return JSON.parse(__firebase_config);
-      }
-    } catch (e) {}
+  <style>
+    /* CSS-design */
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; color: #1e293b; }
+    .app-container { min-height: 100vh; padding-bottom: 80px; }
     
-    // 2. Försök läsa från manuell config (om användaren fyllt i den)
-    // OBS: Vi kollar om någon av nycklarna faktiskt är ifyllda och inte bortkommenterade
-    if (MANUAL_FIREBASE_CONFIG && Object.keys(MANUAL_FIREBASE_CONFIG).length > 0) {
-      return MANUAL_FIREBASE_CONFIG;
+    /* LOGIN SCREEN */
+    .login-screen {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background-color: #0f172a;
+      display: flex; align-items: center; justify-content: center;
+      padding: 20px; z-index: 100;
+    }
+    .login-card {
+      background: white; width: 100%; max-width: 360px;
+      border-radius: 24px; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);
+    }
+    .login-header {
+      background-color: #facc15; padding: 40px; display: flex; justify-content: center;
+    }
+    .login-body { padding: 32px; }
+    .login-title { text-align: center; font-size: 24px; font-weight: bold; margin: 0 0 8px 0; color: #0f172a; }
+    .login-subtitle { text-align: center; color: #64748b; margin-bottom: 24px; }
+    .input-code {
+      width: 100%; padding: 16px; font-size: 24px; text-align: center; letter-spacing: 4px;
+      border: 2px solid #e2e8f0; border-radius: 12px; margin-bottom: 16px; outline: none;
+    }
+    .input-code:focus { border-color: #facc15; }
+    .btn-primary {
+      width: 100%; background-color: #0f172a; color: white; border: none;
+      padding: 16px; border-radius: 12px; font-size: 16px; font-weight: bold;
+      display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; transition: background 0.2s;
+    }
+    .btn-primary:hover { background-color: #1e293b; }
+    .error-msg { color: #ef4444; text-align: center; font-size: 14px; margin-bottom: 12px; }
+
+    /* MAIN APP */
+    .header {
+      background-color: #0f172a; color: white; position: sticky; top: 0; z-index: 50;
+      box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+    }
+    .header-content {
+      max-width: 800px; margin: 0 auto; padding: 16px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .header-left { display: flex; align-items: center; gap: 12px; }
+    .icon-box { background-color: #facc15; padding: 8px; border-radius: 8px; color: #0f172a; display: flex; }
+    .header-title h1 { margin: 0; font-size: 18px; font-weight: bold; }
+    .header-title p { margin: 0; font-size: 12px; color: #94a3b8; font-family: monospace; }
+    .btn-text { background: none; border: none; color: #94a3b8; font-size: 12px; cursor: pointer; }
+    
+    .main-content { max-width: 800px; margin: 0 auto; padding: 16px; display: flex; flex-direction: column; gap: 24px; }
+    .demo-banner {
+      background-color: #fff7ed; border: 1px solid #fed7aa; color: #c2410c;
+      padding: 12px; border-radius: 12px; font-size: 14px; text-align: center;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
     }
 
-    // 3. Om inget hittas, returnera null -> aktiverar "Setup Screen" eller "Demoläge"
-    return null;
-  }, []);
-
-  const appId = typeof __app_id !== 'undefined' ? __app_id : 'station-app';
-
-  // Initiera Firebase bara om config finns
-  const app = useMemo(() => configToUse ? initializeApp(configToUse) : null, [configToUse]);
-  const auth = useMemo(() => app ? getAuth(app) : null, [app]);
-  const db = useMemo(() => app ? getFirestore(app) : null, [app]);
-
-  useEffect(() => {
-    if (!auth) {
-      setIsDemoMode(true);
-      return;
-    }
-
-    const initAuth = async () => {
-      try {
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          await signInWithCustomToken(auth, __initial_auth_token);
-        } else {
-          await signInAnonymously(auth);
-        }
-      } catch (err) {
-        console.error("Auth failed:", err);
-        // Fallback till demo om auth misslyckas
-        setIsDemoMode(true);
-      }
-    };
-    initAuth();
+    /* CARDS & TASKS */
+    .card { background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border: 1px solid #e2e8f0; }
+    .card-header { padding: 16px; background-color: #f8fafc; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; }
+    .card-title { margin: 0; font-size: 18px; font-weight: bold; color: #1e293b; display: flex; align-items: center; gap: 8px; }
     
-    const savedSession = localStorage.getItem('station_unlocked');
-    if (savedSession === 'true') setIsUnlocked(true);
-    
-    return onAuthStateChanged(auth, (u) => {
-      if (u) {
-        setUser(u);
-        setIsDemoMode(false);
-      } else {
-        // Om vi inte får en användare, hamnar vi kanske här
-      }
-    });
-  }, [auth]);
-
-  useEffect(() => {
-    // Ladda data
-    if (isDemoMode) {
-      // I demoläge, skapa fake data
-      initializeLocalDemoData();
-      return;
+    .task-list { display: flex; flex-direction: column; }
+    .task-item {
+      padding: 16px; display: flex; gap: 16px; align-items: flex-start;
+      border-bottom: 1px solid #f1f5f9; cursor: pointer; transition: background 0.1s;
     }
-
-    if (!user || !db) return;
+    .task-item:last-child { border-bottom: none; }
+    .task-item:hover { background-color: #f8fafc; }
+    .task-item.done { background-color: rgba(34, 197, 94, 0.1); }
     
-    // Använd rätt sökväg för publika data: /artifacts/{appId}/public/data/{collection}
-    const docRef = doc(collection(db, 'artifacts', appId, 'public', 'data', 'chores'), 'current_state');
-
-    const unsubscribe = onSnapshot(docRef, async (snapshot) => {
-      const currentWeekId = getWeekId();
-      
-      if (!snapshot.exists()) {
-        await initializeNewWeek(docRef, currentWeekId, [], []);
-      } else {
-        const data = snapshot.data();
-        if (data.weekId !== currentWeekId) {
-          const previousTasks = data.tasks || [];
-          const notDone = previousTasks.filter((t: any) => !t.done && !t.isAdHoc);
-          const oldMissed = data.missedTasks || [];
-          const oldMissedStillNotDone = oldMissed.filter((t: any) => !t.done);
-          
-          const newMissedList = [...oldMissedStillNotDone, ...notDone.map((t: any) => ({
-            ...t, originalWeek: data.weekId, isMissed: true
-          }))];
-
-          await initializeNewWeek(docRef, currentWeekId, newMissedList, []);
-        } else {
-          setTasks(data.tasks || []);
-          setMissedTasks(data.missedTasks || []);
-        }
-      }
-    }, (error) => {
-      console.error("Error fetching tasks:", error);
-      setIsDemoMode(true); // Om vi tappar access, gå till demo
-      initializeLocalDemoData();
-    });
-    return () => unsubscribe();
-  }, [user, db, appId, isDemoMode]);
-
-  const initializeLocalDemoData = () => {
-    // Skapar temporär data för visning om databas saknas
-    const freshTasks: any[] = [];
-    Object.entries(WEEKLY_TASKS_TEMPLATE).forEach(([day, taskList]) => {
-      taskList.forEach(task => freshTasks.push({ ...task, done: false, signedBy: '', completedAt: null, isAdHoc: false }));
-    });
-    ADHOC_TASKS.forEach(task => freshTasks.push({ ...task, done: false, signedBy: '', completedAt: null, isAdHoc: true }));
-    setTasks(freshTasks);
-    setMissedTasks([]); 
-  };
-
-  const initializeNewWeek = async (docRef: any, weekId: string, carryOverTasks: any[], existingAdHoc: any[]) => {
-    const freshTasks: any[] = [];
-    Object.entries(WEEKLY_TASKS_TEMPLATE).forEach(([day, taskList]) => {
-      taskList.forEach(task => freshTasks.push({ ...task, done: false, signedBy: '', completedAt: null, isAdHoc: false }));
-    });
-    ADHOC_TASKS.forEach(task => freshTasks.push({ ...task, done: false, signedBy: '', completedAt: null, isAdHoc: true }));
-
-    await setDoc(docRef, { weekId: weekId, tasks: freshTasks, missedTasks: carryOverTasks, lastUpdated: Timestamp.now() });
-  };
-
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (passwordInput === STATION_PASSWORD) {
-      setIsUnlocked(true);
-      setLoginError(false);
-      localStorage.setItem('station_unlocked', 'true');
-    } else {
-      setLoginError(true);
+    .checkbox {
+      width: 28px; height: 28px; border-radius: 50%; border: 2px solid #cbd5e1;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+      background: white;
     }
-  };
-
-  const startSigning = (taskId: string, listType: 'regular' | 'missed') => {
-    setSigningTask(`${listType}:${taskId}`);
-    setSignerName("");
-  };
-
-  const confirmTask = async () => {
-    if (!signingTask || !signerName.trim()) return;
+    .task-item.done .checkbox { background-color: #22c55e; border-color: #22c55e; color: white; }
+    .task-item.missed .checkbox { border-color: #fca5a5; }
     
-    // DEMO MODE HANTERING
-    if (isDemoMode) {
-      const [listType, taskId] = signingTask.split(':');
-      const timestamp = new Date().toISOString();
-      const updateList = (list: any[]) => list.map(t => 
-        t.id === taskId ? { ...t, done: !t.done, signedBy: !t.done ? signerName : '', completedAt: !t.done ? timestamp : null } : t
-      );
-      if (listType === 'regular') setTasks(updateList(tasks));
-      else setMissedTasks(updateList(missedTasks));
-      
-      setSigningTask(null);
-      setSignerName("");
-      return;
+    .task-text { flex: 1; }
+    .task-label { font-size: 16px; font-weight: 500; color: #1e293b; margin: 0; line-height: 1.4; }
+    .task-item.done .task-label { text-decoration: line-through; color: #94a3b8; }
+    
+    .meta-info { margin-top: 6px; display: flex; gap: 12px; font-size: 12px; align-items: center; }
+    .signed-tag {
+      display: inline-flex; align-items: center; gap: 4px; 
+      background-color: #dcfce7; color: #15803d; padding: 2px 8px; 
+      border-radius: 6px; font-weight: bold;
     }
+    .missed-tag {
+      background-color: #fee2e2; color: #b91c1c; padding: 2px 8px;
+      border-radius: 6px; font-weight: bold;
+    }
+    .unsigned-text { color: #94a3b8; }
 
-    // FIREBASE HANTERING
-    const [listType, taskId] = signingTask.split(':');
-    const docRef = doc(collection(db, 'artifacts', appId, 'public', 'data', 'chores'), 'current_state');
-    const timestamp = new Date().toISOString();
+    /* MISSED TASKS CARD */
+    .missed-card { border: 2px solid #fee2e2; background-color: #fef2f2; }
+    .missed-header { background-color: #fee2e2; color: #991b1b; }
 
-    const updateList = (list: any[]) => list.map(t => 
-      t.id === taskId ? { ...t, done: !t.done, signedBy: !t.done ? signerName : '', completedAt: !t.done ? timestamp : null } : t
+    /* ADHOC CARD */
+    .adhoc-header { background-color: #1e293b; color: white; }
+    .adhoc-title { color: white; }
+
+    /* MODAL */
+    .modal-overlay {
+      position: fixed; inset: 0; background-color: rgba(0,0,0,0.6);
+      display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 200;
+      backdrop-filter: blur(4px);
+    }
+    .modal-card {
+      background: white; width: 100%; max-width: 400px; border-radius: 16px;
+      padding: 24px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
+      animation: popIn 0.2s ease-out;
+    }
+    @keyframes popIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    
+    .modal-title { margin: 0 0 8px 0; font-size: 20px; font-weight: bold; }
+    .modal-text { color: #64748b; margin: 0 0 24px 0; }
+    .input-name {
+      width: 100%; padding: 16px; border: 2px solid #e2e8f0; border-radius: 12px;
+      font-size: 18px; margin-bottom: 24px; outline: none;
+    }
+    .input-name:focus { border-color: #22c55e; }
+    .modal-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .btn-cancel {
+      background-color: #f1f5f9; color: #475569; border: none; padding: 12px;
+      border-radius: 12px; font-weight: bold; cursor: pointer;
+    }
+    .btn-confirm {
+      background-color: #22c55e; color: white; border: none; padding: 12px;
+      border-radius: 12px; font-weight: bold; cursor: pointer;
+    }
+    .btn-confirm:disabled { opacity: 0.5; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <!-- SCRIPTSTART - All kod för appen -->
+  <script type="text/babel">
+    const { useState, useEffect, useMemo } = React;
+
+    // --- ICONS ---
+    const Ambulance = ({size=24, color="currentColor"}) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 10l6 0"/><path d="M13 7l0 6"/><path d="M19 14.286c0 1.257 -.416 2.404 -1.134 3.29c-1.134 1.401 -3.109 2.424 -5.866 2.424s-4.732 -1.023 -5.866 -2.423c-.718 -.887 -1.134 -2.034 -1.134 -3.291c0 -2.628 3.134 -4.286 7 -4.286s7 1.658 7 4.286z"/><path d="M5.029 14.652c.264 -2.607 1.83 -5.652 6.971 -5.652s6.707 3.045 6.971 5.652"/><path d="M5.006 12.396l-1.006 -2.396l2.164 -2.527a2.003 2.003 0 0 1 2.126 -.646l3.71 1.173l3.71 -1.173a2.003 2.003 0 0 1 2.126 .646l2.164 2.527l-1.006 2.396"/></svg>
+    );
+    const Lock = ({size=24, color="currentColor"}) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+    );
+    const AlertTriangle = ({size=24, color="currentColor"}) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+    );
+    const Calendar = ({size=24, color="currentColor"}) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>
+    );
+    const CheckCircle2 = ({size=24, color="currentColor"}) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
+    );
+    const User = ({size=24, color="currentColor"}) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    );
+    const History = ({size=24, color="currentColor"}) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>
+    );
+    const WifiOff = ({size=24, color="currentColor"}) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="2" x2="22" y1="2" y2="22"/><path d="M8.5 8.5A6 6 0 0 1 12 8a6 6 0 0 1 6 2"/><path d="M5 5.5A10 10 0 0 1 12 2a10 10 0 0 1 10 6.5"/><path d="M14.83 14.83a4 4 0 0 1-5.66 0"/><path d="M12 22v.01"/></svg>
     );
 
-    await updateDoc(docRef, {
-      tasks: listType === 'regular' ? updateList(tasks) : tasks,
-      missedTasks: listType === 'missed' ? updateList(missedTasks) : missedTasks
-    });
+    // --- KONFIGURATION ---
+    const STATION_PASSWORD = "112";
 
-    setSigningTask(null);
-    setSignerName("");
-  };
+    // DINA NYCKLAR ÄR HÄR
+    const MANUAL_FIREBASE_CONFIG = {
+      apiKey: "AIzaSyB8aujVryb93dqWxnQk2z3O0vgHQi5XY9A",
+      authDomain: "stationssyor.firebaseapp.com",
+      projectId: "stationssyor",
+      storageBucket: "stationssyor.firebasestorage.app",
+      messagingSenderId: "628579465876",
+      appId: "1:628579465876:web:dc868450ef2e13e8b1d281",
+      measurementId: "G-LN9XCK78SH"
+    };
 
-  if (!isUnlocked) {
-    return (
-      <>
-        <style>{appStyles}</style>
-        <div className="login-screen">
-          <div className="login-card">
-            <div className="login-header">
-              <Ambulance size={64} color="#0f172a" />
+    const WEEKLY_TASKS_TEMPLATE = {
+      Tuesday: [
+        { id: 'tue_1', text: 'Storrengöring ambulansen 9410', day: 'Tisdag' },
+        { id: 'tue_2', text: 'Storrengöring ambulansen 9420', day: 'Tisdag' },
+        { id: 'tue_3', text: 'Däckkontroll', day: 'Tisdag' },
+      ],
+      Wednesday: [
+        { id: 'wed_1', text: 'Rengöring Tvätthall', day: 'Onsdag' },
+        { id: 'wed_2', text: 'Rensa och rengöra båda kylskåpen, kasta omärkt mat', day: 'Onsdag' },
+        { id: 'wed_3', text: 'Torka bänkar, dörrar, lådor, rengör mikrovågsugnar och kaffebryggare', day: 'Onsdag' },
+      ],
+      Thursday: [
+        { id: 'thu_1', text: 'Storkontroll av ambulanserna 9410 & 9420 enl. packplan', day: 'Torsdag' },
+        { id: 'thu_2', text: 'Lägg sopsäckar i soptunnan i tvättstugan', day: 'Torsdag' },
+      ],
+      Friday: [
+        { id: 'fri_1', text: 'Rengöring vagnhall', day: 'Fredag' },
+      ],
+      Saturday: [
+        { id: 'sat_1', text: 'Kontrollera och städa reservbil/Flexbil 9030', day: 'Lördag' },
+        { id: 'sat_2', text: 'Provstarta 9030', day: 'Lördag' },
+        { id: 'sat_3', text: 'Tanka 9030 vid ½ tank', day: 'Lördag' },
+      ]
+    };
+
+    const ADHOC_TASKS = [
+      { id: 'ad_1', text: 'Tidningar (Släng/Sortera)', day: 'Vid behov' },
+      { id: 'ad_2', text: 'Pantburkar', day: 'Vid behov' },
+      { id: 'ad_3', text: 'Vattna blommor', day: 'Vid behov' },
+      { id: 'ad_4', text: 'Hämta post i postfacket', day: 'Vid behov' },
+    ];
+
+    function getISOWeek(date) {
+      const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+      const dayNum = d.getUTCDay() || 7;
+      d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+      const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+      return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+    }
+
+    function getWeekId() {
+      const now = new Date();
+      const year = now.getFullYear();
+      const week = getISOWeek(now);
+      return `${year}-W${week}`;
+    }
+
+    // --- APP COMPONENT ---
+    function StationChoresApp() {
+      const [user, setUser] = useState(null);
+      const [isUnlocked, setIsUnlocked] = useState(false);
+      const [passwordInput, setPasswordInput] = useState("");
+      const [loginError, setLoginError] = useState(false);
+      const [tasks, setTasks] = useState([]);
+      const [missedTasks, setMissedTasks] = useState([]);
+      const [signingTask, setSigningTask] = useState(null);
+      const [signerName, setSignerName] = useState("");
+      const [isDemoMode, setIsDemoMode] = useState(false);
+
+      const appId = 'station-app';
+      const db = firebase.firestore();
+
+      useEffect(() => {
+        // Initiera Firebase
+        if (!firebase.apps.length) {
+          firebase.initializeApp(MANUAL_FIREBASE_CONFIG);
+        }
+        
+        const auth = firebase.auth();
+
+        const initAuth = async () => {
+          try {
+            await auth.signInAnonymously();
+          } catch (err) {
+            console.error("Auth failed:", err);
+            setIsDemoMode(true);
+          }
+        };
+        initAuth();
+        
+        const savedSession = localStorage.getItem('station_unlocked');
+        if (savedSession === 'true') setIsUnlocked(true);
+        
+        return auth.onAuthStateChanged((u) => {
+          if (u) {
+            setUser(u);
+            setIsDemoMode(false);
+          }
+        });
+      }, []);
+
+      useEffect(() => {
+        if (isDemoMode) {
+          initializeLocalDemoData();
+          return;
+        }
+
+        if (!user) return;
+        
+        // Hämta data från Firestore
+        const docRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('chores').doc('current_state');
+
+        const unsubscribe = docRef.onSnapshot(async (snapshot) => {
+          const currentWeekId = getWeekId();
+          
+          if (!snapshot.exists) {
+            await initializeNewWeek(docRef, currentWeekId, [], []);
+          } else {
+            const data = snapshot.data();
+            if (data.weekId !== currentWeekId) {
+              const previousTasks = data.tasks || [];
+              const notDone = previousTasks.filter((t) => !t.done && !t.isAdHoc);
+              const oldMissed = data.missedTasks || [];
+              const oldMissedStillNotDone = oldMissed.filter((t) => !t.done);
+              
+              const newMissedList = [...oldMissedStillNotDone, ...notDone.map((t) => ({
+                ...t, originalWeek: data.weekId, isMissed: true
+              }))];
+
+              await initializeNewWeek(docRef, currentWeekId, newMissedList, []);
+            } else {
+              setTasks(data.tasks || []);
+              setMissedTasks(data.missedTasks || []);
+            }
+          }
+        }, (error) => {
+          console.error("Error fetching tasks:", error);
+          setIsDemoMode(true);
+          initializeLocalDemoData();
+        });
+        return () => unsubscribe();
+      }, [user, isDemoMode]);
+
+      const initializeLocalDemoData = () => {
+        const freshTasks = [];
+        Object.entries(WEEKLY_TASKS_TEMPLATE).forEach(([day, taskList]) => {
+          taskList.forEach(task => freshTasks.push({ ...task, done: false, signedBy: '', completedAt: null, isAdHoc: false }));
+        });
+        ADHOC_TASKS.forEach(task => freshTasks.push({ ...task, done: false, signedBy: '', completedAt: null, isAdHoc: true }));
+        setTasks(freshTasks);
+        setMissedTasks([]); 
+      };
+
+      const initializeNewWeek = async (docRef, weekId, carryOverTasks, existingAdHoc) => {
+        const freshTasks = [];
+        Object.entries(WEEKLY_TASKS_TEMPLATE).forEach(([day, taskList]) => {
+          taskList.forEach(task => freshTasks.push({ ...task, done: false, signedBy: '', completedAt: null, isAdHoc: false }));
+        });
+        ADHOC_TASKS.forEach(task => freshTasks.push({ ...task, done: false, signedBy: '', completedAt: null, isAdHoc: true }));
+
+        await docRef.set({ weekId: weekId, tasks: freshTasks, missedTasks: carryOverTasks, lastUpdated: firebase.firestore.FieldValue.serverTimestamp() });
+      };
+
+      const handleLogin = (e) => {
+        e.preventDefault();
+        if (passwordInput === STATION_PASSWORD) {
+          setIsUnlocked(true);
+          setLoginError(false);
+          localStorage.setItem('station_unlocked', 'true');
+        } else {
+          setLoginError(true);
+        }
+      };
+
+      const startSigning = (taskId, listType) => {
+        setSigningTask(`${listType}:${taskId}`);
+        setSignerName("");
+      };
+
+      const confirmTask = async () => {
+        if (!signingTask || !signerName.trim()) return;
+        
+        if (isDemoMode) {
+          const [listType, taskId] = signingTask.split(':');
+          const timestamp = new Date().toISOString();
+          const updateList = (list) => list.map(t => 
+            t.id === taskId ? { ...t, done: !t.done, signedBy: !t.done ? signerName : '', completedAt: !t.done ? timestamp : null } : t
+          );
+          if (listType === 'regular') setTasks(updateList(tasks));
+          else setMissedTasks(updateList(missedTasks));
+          
+          setSigningTask(null);
+          setSignerName("");
+          return;
+        }
+
+        const [listType, taskId] = signingTask.split(':');
+        const docRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('chores').doc('current_state');
+        const timestamp = new Date().toISOString();
+
+        const updateList = (list) => list.map(t => 
+          t.id === taskId ? { ...t, done: !t.done, signedBy: !t.done ? signerName : '', completedAt: !t.done ? timestamp : null } : t
+        );
+
+        await docRef.update({
+          tasks: listType === 'regular' ? updateList(tasks) : tasks,
+          missedTasks: listType === 'missed' ? updateList(missedTasks) : missedTasks
+        });
+
+        setSigningTask(null);
+        setSignerName("");
+      };
+
+      if (!isUnlocked) {
+        return (
+          <div className="login-screen">
+            <div className="login-card">
+              <div className="login-header">
+                <Ambulance size={64} color="#0f172a" />
+              </div>
+              <div className="login-body">
+                <h1 className="login-title">Stationssysslor</h1>
+                <p className="login-subtitle">Ange stationskod</p>
+                <form onSubmit={handleLogin}>
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    value={passwordInput}
+                    onChange={(e) => setPasswordInput(e.target.value)}
+                    className="input-code"
+                    placeholder="KOD"
+                    autoFocus
+                  />
+                  {loginError && <p className="error-msg">Fel kod, försök igen.</p>}
+                  <button type="submit" className="btn-primary">
+                    <Lock size={18} /> Lås upp
+                  </button>
+                </form>
+              </div>
             </div>
-            <div className="login-body">
-              <h1 className="login-title">Stationssysslor</h1>
-              <p className="login-subtitle">Ange stationskod</p>
-              <form onSubmit={handleLogin}>
+          </div>
+        );
+      }
+
+      const tasksByDay = tasks.reduce((acc, task) => {
+        if (task.isAdHoc) return acc;
+        if (!acc[task.day]) acc[task.day] = [];
+        acc[task.day].push(task);
+        return acc;
+      }, {});
+
+      const adHocTasks = tasks.filter((t) => t.isAdHoc);
+
+      return (
+        <div className="app-container">
+          
+          {/* MODAL */}
+          {signingTask && (
+            <div className="modal-overlay">
+              <div className="modal-card">
+                <h3 className="modal-title">Signera utförd syssla</h3>
+                <p className="modal-text">Vem är det som checkar av detta?</p>
                 <input
-                  type="password"
-                  inputMode="numeric"
-                  value={passwordInput}
-                  onChange={(e) => setPasswordInput(e.target.value)}
-                  className="input-code"
-                  placeholder="KOD"
+                  type="text"
+                  value={signerName}
+                  onChange={(e) => setSignerName(e.target.value)}
+                  placeholder="Ditt förnamn"
+                  className="input-name"
                   autoFocus
                 />
-                {loginError && <p className="error-msg">Fel kod, försök igen.</p>}
-                <button type="submit" className="btn-primary">
-                  <Lock size={18} /> Lås upp
-                </button>
-              </form>
+                <div className="modal-actions">
+                  <button onClick={() => setSigningTask(null)} className="btn-cancel">Avbryt</button>
+                  <button onClick={confirmTask} disabled={!signerName.trim()} className="btn-confirm">Klart!</button>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
-      </>
-    );
-  }
-
-  const tasksByDay = tasks.reduce((acc: any, task: any) => {
-    if (task.isAdHoc) return acc;
-    if (!acc[task.day]) acc[task.day] = [];
-    acc[task.day].push(task);
-    return acc;
-  }, {});
-
-  const adHocTasks = tasks.filter((t: any) => t.isAdHoc);
-
-  return (
-    <div className="app-container">
-      <style>{appStyles}</style>
-
-      {/* MODAL */}
-      {signingTask && (
-        <div className="modal-overlay">
-          <div className="modal-card">
-            <h3 className="modal-title">Signera utförd syssla</h3>
-            <p className="modal-text">Vem är det som checkar av detta?</p>
-            <input
-              type="text"
-              value={signerName}
-              onChange={(e) => setSignerName(e.target.value)}
-              placeholder="Ditt förnamn"
-              className="input-name"
-              autoFocus
-            />
-            <div className="modal-actions">
-              <button onClick={() => setSigningTask(null)} className="btn-cancel">Avbryt</button>
-              <button onClick={confirmTask} disabled={!signerName.trim()} className="btn-confirm">Klart!</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* HEADER */}
-      <header className="header">
-        <div className="header-content">
-          <div className="header-left">
-            <div className="icon-box"><Ambulance size={24} /></div>
-            <div className="header-title">
-              <h1>Stationssysslor</h1>
-              <p>Vecka {getISOWeek(new Date())}</p>
-            </div>
-          </div>
-          <button onClick={() => { setIsUnlocked(false); localStorage.removeItem('station_unlocked'); }} className="btn-text">
-            Lås
-          </button>
-        </div>
-      </header>
-
-      {/* DEMO MODE BANNER */}
-      {isDemoMode && (
-        <div className="demo-banner">
-          <WifiOff size={16} />
-          <span>Demoläge (Databas saknas) - Ändringar sparas ej</span>
-        </div>
-      )}
-
-      <main className="main-content">
-        
-        {/* SLÄPANDE SYSSLOR */}
-        {missedTasks.length > 0 && (
-          <div className="card missed-card">
-            <div className="card-header missed-header">
-              <h2 className="card-title" style={{color: '#991b1b'}}>
-                <AlertTriangle size={20} /> Släpande sysslor
-              </h2>
-            </div>
-            <div className="task-list">
-              {missedTasks.map((task) => (
-                <TaskItem key={task.id} task={task} onToggle={() => task.done ? null : startSigning(task.id, 'missed')} isMissed={true} />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* DAGAR */}
-        {['Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag'].map((day) => (
-          <div key={day} className="card">
-            <div className="card-header">
-              <h2 className="card-title">
-                <Calendar size={18} color="#eab308" /> {day}
-              </h2>
-              <span style={{fontSize: '12px', color: '#94a3b8', background: '#f1f5f9', padding: '2px 8px', borderRadius: '12px'}}>
-                {tasksByDay[day]?.filter((t:any) => t.done).length || 0} / {tasksByDay[day]?.length || 0}
-              </span>
-            </div>
-            <div className="task-list">
-              {tasksByDay[day]?.map((task: any) => (
-                <TaskItem 
-                  key={task.id} 
-                  task={task} 
-                  onToggle={() => {
-                    if(task.done) { setSigningTask(`regular:${task.id}`); setSignerName(""); } 
-                    else { startSigning(task.id, 'regular'); }
-                  }} 
-                />
-              ))}
-              {!tasksByDay[day] && <div style={{padding:'16px', color:'#cbd5e1', fontStyle:'italic'}}>Inga sysslor.</div>}
-            </div>
-          </div>
-        ))}
-
-        {/* ÖVRIGT */}
-        <div className="card" style={{borderColor: '#1e293b'}}>
-          <div className="card-header adhoc-header">
-            <h2 className="card-title adhoc-title">
-              <History size={18} color="#facc15" /> Vid behov / Övrigt
-            </h2>
-          </div>
-          <div className="task-list">
-            {adHocTasks.map((task: any) => (
-              <TaskItem key={task.id} task={task} onToggle={() => startSigning(task.id, 'regular')} />
-            ))}
-          </div>
-        </div>
-      </main>
-    </div>
-  );
-}
-
-function TaskItem({ task, onToggle, isMissed = false }: any) {
-  return (
-    <div className={`task-item ${task.done ? 'done' : ''} ${isMissed ? 'missed' : ''}`} onClick={onToggle}>
-      <div className="checkbox">
-        {task.done && <CheckCircle2 size={18} />}
-      </div>
-      <div className="task-text">
-        <p className="task-label">{task.text}</p>
-        <div className="meta-info">
-          {task.signedBy ? (
-            <span className="signed-tag"><User size={12} /> {task.signedBy}</span>
-          ) : (
-            <span className="unsigned-text">Ej signerad</span>
           )}
-          {isMissed && !task.done && <span className="missed-tag">Släpar</span>}
+
+          {/* HEADER */}
+          <header className="header">
+            <div className="header-content">
+              <div className="header-left">
+                <div className="icon-box"><Ambulance size={24} /></div>
+                <div className="header-title">
+                  <h1>Stationssysslor</h1>
+                  <p>Vecka {getISOWeek(new Date())}</p>
+                </div>
+              </div>
+              <button onClick={() => { setIsUnlocked(false); localStorage.removeItem('station_unlocked'); }} className="btn-text">
+                Lås
+              </button>
+            </div>
+          </header>
+
+          {/* DEMO MODE BANNER */}
+          {isDemoMode && (
+            <div className="demo-banner">
+              <WifiOff size={16} />
+              <span>Demoläge (Databas saknas) - Ändringar sparas ej</span>
+            </div>
+          )}
+
+          <main className="main-content">
+            
+            {/* SLÄPANDE SYSSLOR */}
+            {missedTasks.length > 0 && (
+              <div className="card missed-card">
+                <div className="card-header missed-header">
+                  <h2 className="card-title" style={{color: '#991b1b'}}>
+                    <AlertTriangle size={20} /> Släpande sysslor
+                  </h2>
+                </div>
+                <div className="task-list">
+                  {missedTasks.map((task) => (
+                    <TaskItem key={task.id} task={task} onToggle={() => task.done ? null : startSigning(task.id, 'missed')} isMissed={true} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* DAGAR */}
+            {['Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag'].map((day) => (
+              <div key={day} className="card">
+                <div className="card-header">
+                  <h2 className="card-title">
+                    <Calendar size={18} color="#eab308" /> {day}
+                  </h2>
+                  <span style={{fontSize: '12px', color: '#94a3b8', background: '#f1f5f9', padding: '2px 8px', borderRadius: '12px'}}>
+                    {tasksByDay[day]?.filter((t) => t.done).length || 0} / {tasksByDay[day]?.length || 0}
+                  </span>
+                </div>
+                <div className="task-list">
+                  {tasksByDay[day]?.map((task) => (
+                    <TaskItem 
+                      key={task.id} 
+                      task={task} 
+                      onToggle={() => {
+                        if(task.done) { setSigningTask(`regular:${task.id}`); setSignerName(""); } 
+                        else { startSigning(task.id, 'regular'); }
+                      }} 
+                    />
+                  ))}
+                  {!tasksByDay[day] && <div style={{padding:'16px', color:'#cbd5e1', fontStyle:'italic'}}>Inga sysslor.</div>}
+                </div>
+              </div>
+            ))}
+
+            {/* ÖVRIGT */}
+            <div className="card" style={{borderColor: '#1e293b'}}>
+              <div className="card-header adhoc-header">
+                <h2 className="card-title adhoc-title">
+                  <History size={18} color="#facc15" /> Vid behov / Övrigt
+                </h2>
+              </div>
+              <div className="task-list">
+                {adHocTasks.map((task) => (
+                  <TaskItem key={task.id} task={task} onToggle={() => startSigning(task.id, 'regular')} />
+                ))}
+              </div>
+            </div>
+          </main>
         </div>
-      </div>
-    </div>
-  );
-}
+      );
+    }
+
+    function TaskItem({ task, onToggle, isMissed = false }) {
+      return (
+        <div className={`task-item ${task.done ? 'done' : ''} ${isMissed ? 'missed' : ''}`} onClick={onToggle}>
+          <div className="checkbox">
+            {task.done && <CheckCircle2 size={18} />}
+          </div>
+          <div className="task-text">
+            <p className="task-label">{task.text}</p>
+            <div className="meta-info">
+              {task.signedBy ? (
+                <span className="signed-tag"><User size={12} /> {task.signedBy}</span>
+              ) : (
+                <span className="unsigned-text">Ej signerad</span>
+              )}
+              {isMissed && !task.done && <span className="missed-tag">Släpar</span>}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<StationChoresApp />);
+  </script>
+</body>
+</html>
