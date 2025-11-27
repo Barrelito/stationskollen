@@ -136,21 +136,28 @@
     const { useState, useEffect, useMemo } = React;
 
     // --- 1. STARTA FIREBASE ---
-    // VIKTIGT: Om du fortfarande får felmeddelande om API-nyckel:
-    // Kopiera texten från Firebase igen och ersätt hela blocket nedan.
+    // INSTRUKTION: Gå till Firebase Console -> Project Settings.
+    // Välj "Config" (inte npm). Kopiera allt mellan måsvingarna { och }
+    // och klistra in det istället för min kommentar nedan.
     const MANUAL_FIREBASE_CONFIG = {
-      apiKey: "AIzaSyB8aujVryb93dqWxnQk2z300vgHQi5XY9A", // Ändrade O till 0 här!
-      authDomain: "stationssyor.firebaseapp.com",
-      projectId: "stationssyor",
-      storageBucket: "stationssyor.firebasestorage.app",
-      messagingSenderId: "628579465876",
-      appId: "1:628579465876:web:dc868450ef2e13e8b1d281",
-      measurementId: "G-LN9XCK78SH"
+     
+  apiKey: "AIzaSyB8aujVryb93dqWxnQk2z3OOvgHQi5XY9A",
+  authDomain: "stationssyor.firebaseapp.com",
+  projectId: "stationssyor",
+  storageBucket: "stationssyor.firebasestorage.app",
+  messagingSenderId: "628579465876",
+  appId: "1:628579465876:web:dc868450ef2e13e8b1d281",
+  measurementId: "G-LN9XCK78SH
     };
 
     // Initiera bara om det inte redan är gjort
     if (typeof firebase !== 'undefined' && !firebase.apps.length) {
-      firebase.initializeApp(MANUAL_FIREBASE_CONFIG);
+      // Dubbelkolla att konfig finns innan start
+      if (Object.keys(MANUAL_FIREBASE_CONFIG).length > 0) {
+        firebase.initializeApp(MANUAL_FIREBASE_CONFIG);
+      } else {
+        console.warn("Ingen Firebase-konfiguration hittades. Appen körs i offline-demo.");
+      }
     } else if (typeof firebase === 'undefined') {
       throw new Error("Firebase kunde inte laddas. Kontrollera din internetanslutning eller brandvägg.");
     }
@@ -246,10 +253,25 @@
 
       const appId = 'station-app';
       
-      const db = useMemo(() => firebase.firestore(), []);
-      const auth = useMemo(() => firebase.auth(), []);
+      const db = useMemo(() => {
+        // Om ingen config finns, returnera null istället för att krascha
+        if (Object.keys(MANUAL_FIREBASE_CONFIG).length === 0) return null;
+        return firebase.firestore();
+      }, []);
+      
+      const auth = useMemo(() => {
+        if (Object.keys(MANUAL_FIREBASE_CONFIG).length === 0) return null;
+        return firebase.auth();
+      }, []);
 
       useEffect(() => {
+        // Om config saknas, gå direkt till demo
+        if (!auth) {
+          setIsDemoMode(true);
+          setDemoError("Ingen databaskoppling hittades (konfiguration saknas).");
+          return;
+        }
+
         // Logga in anonymt
         const initAuth = async () => {
           try {
@@ -280,7 +302,7 @@
           return;
         }
 
-        if (!user) return;
+        if (!user || !db) return;
         
         // Hämta data från Firestore
         const docRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('chores').doc('current_state');
