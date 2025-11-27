@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>StationssysslorXXX</title>
+  <title>Stationssysslor</title>
   
   <!-- 1. Hämta bibliotek -->
   <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
@@ -67,11 +67,11 @@
     
     .main-content { max-width: 800px; margin: 0 auto; padding: 16px; display: flex; flex-direction: column; gap: 24px; }
     
-    /* Uppdaterad Demo Banner för att visa felmeddelanden */
+    /* Uppdaterad Demo Banner */
     .demo-banner { 
       background-color: #fff7ed; border: 1px solid #fed7aa; color: #c2410c; 
       padding: 12px; border-radius: 12px; font-size: 13px; text-align: center; 
-      display: flex; flex-direction: column; align-items: center; gap: 4px; 
+      display: flex; flex-direction: column; align-items: center; gap: 4px; margin-bottom: 16px;
     }
     .demo-error-detail {
       font-size: 11px; font-family: monospace; background: rgba(0,0,0,0.05);
@@ -135,9 +135,11 @@
   <script type="text/babel">
     const { useState, useEffect, useMemo } = React;
 
-    // --- 1. STARTA FIREBASE (Körs direkt, innan React startar) ---
+    // --- 1. STARTA FIREBASE ---
+    // VIKTIGT: Om du fortfarande får felmeddelande om API-nyckel:
+    // Kopiera texten från Firebase igen och ersätt hela blocket nedan.
     const MANUAL_FIREBASE_CONFIG = {
-      apiKey: "AIzaSyB8aujVryb93dqWxnQk2z3O0vgHQi5XY9A",
+      apiKey: "AIzaSyB8aujVryb93dqWxnQk2z300vgHQi5XY9A", // Ändrade O till 0 här!
       authDomain: "stationssyor.firebaseapp.com",
       projectId: "stationssyor",
       storageBucket: "stationssyor.firebasestorage.app",
@@ -240,7 +242,7 @@
       const [signingTask, setSigningTask] = useState(null);
       const [signerName, setSignerName] = useState("");
       const [isDemoMode, setIsDemoMode] = useState(false);
-      const [demoError, setDemoError] = useState(""); // NYTT: Sparar felmeddelandet
+      const [demoError, setDemoError] = useState(""); 
 
       const appId = 'station-app';
       
@@ -309,7 +311,7 @@
         }, (error) => {
           console.error("Error fetching tasks:", error);
           setIsDemoMode(true);
-          setDemoError("Databasfel: " + error.message); // Visa felet för användaren
+          setDemoError("Databasfel: " + error.message); 
           initializeLocalDemoData();
         });
         return () => unsubscribe();
