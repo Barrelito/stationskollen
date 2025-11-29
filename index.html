@@ -189,6 +189,9 @@
     const STATION_PASSWORD = "112";
 
     const WEEKLY_TASKS_TEMPLATE = {
+      Monday: [ // NY DAG!
+        { id: 'mon_1', text: 'Kontroll av reservbil/Flexbil 9030', day: 'Måndag' },
+      ],
       Tuesday: [
         { id: 'tue_1', text: 'Storrengöring ambulansen 9410', day: 'Tisdag' },
         { id: 'tue_2', text: 'Storrengöring ambulansen 9420', day: 'Tisdag' },
@@ -198,6 +201,7 @@
         { id: 'wed_1', text: 'Rengöring Tvätthall', day: 'Onsdag' },
         { id: 'wed_2', text: 'Rensa och rengöra båda kylskåpen, kasta omärkt mat', day: 'Onsdag' },
         { id: 'wed_3', text: 'Torka bänkar, dörrar, lådor, rengör mikrovågsugnar och kaffebryggare', day: 'Onsdag' },
+        { id: 'wed_4', text: 'Storrengöring reservbil/Flexbil 9030', day: 'Onsdag' }, // NY UPPSALA
       ],
       Thursday: [
         { id: 'thu_1', text: 'Storkontroll av ambulans 9410 enl. packplan', day: 'Torsdag' },
@@ -208,8 +212,7 @@
         { id: 'fri_1', text: 'Rengöring vagnhall', day: 'Fredag' },
       ],
       Saturday: [
-        { id: 'sat_1', text: 'Kontrollera och städa reservbil/Flexbil 9030', day: 'Lördag' },
-        { id: 'sat_2', text: 'Provstarta 9030', day: 'Lördag' },
+        { id: 'sat_1', text: 'Provstarta 9030 (Endast Provstart)', day: 'Lördag' }, // ÄNDRAD LÖRDAG
       ]
     };
 
@@ -443,6 +446,12 @@
         acc[task.day].push(task);
         return acc;
       }, {});
+      
+      // Ordning på dagar, inklusive den nya Måndagen
+      const orderedDays = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag'];
+      
+      // Filtera bort dagar utan uppgifter (t.ex. Söndag/Lördag om de blir tomma)
+      const visibleDays = orderedDays.filter(day => tasksByDay[day] && tasksByDay[day].length > 0);
 
       const adHocTasks = tasks.filter((t) => t.isAdHoc);
 
@@ -517,7 +526,7 @@
             )}
 
             {/* DAGAR */}
-            {['Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag'].map((day) => (
+            {visibleDays.map((day) => (
               <div key={day} className="card">
                 <div className="card-header">
                   <h2 className="card-title">
@@ -538,10 +547,27 @@
                       }} 
                     />
                   ))}
-                  {!tasksByDay[day] && <div style={{padding:'16px', color:'#cbd5e1', fontStyle:'italic'}}>Inga sysslor.</div>}
+                  {tasksByDay[day]?.length === 0 && <div style={{padding:'16px', color:'#cbd5e1', fontStyle:'italic'}}>Inga sysslor.</div>}
                 </div>
               </div>
             ))}
+            
+            {/* Söndag - FRI AKTIVITET, visa bara om Lördag är tom, annars döljs den. */}
+            {!tasksByDay['Lördag'] && (
+                 <div key="Söndag" className="card">
+                    <div className="card-header">
+                       <h2 className="card-title">
+                         <Calendar size={18} color="#22c55e" /> Lördag & Söndag
+                       </h2>
+                    </div>
+                    <div className="task-list">
+                       <div style={{padding:'16px', color:'#22c55e', fontStyle:'italic', fontWeight:'bold'}}>
+                          FRI AKTIVITET (Hela helgen är ledig från fasta stationssysslor!)
+                       </div>
+                    </div>
+                  </div>
+            )}
+
 
             {/* ÖVRIGT */}
             <div className="card" style={{borderColor: '#1e293b'}}>
