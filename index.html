@@ -326,7 +326,7 @@
           const currentWeekId = getWeekId();
           
           if (!snapshot.exists) {
-            await initializeNewWeek(docRef, currentWeekId, [], []);
+            await initializeNewWeek(docRef, currentWeekId, [], {}); 
           } else {
             const data = snapshot.data();
             // Lagra historisk data för att kunna bläddra
@@ -352,9 +352,12 @@
               let newAdhoc = ADHOC_TASKS_TEMPLATE;
 
               if (templateSnapshot.exists) {
-                  const templateData = templateSnapshot.data();
-                  newTemplate = templateData.weeklyTasks || WEEKLY_TASKS_TEMPLATE;
-                  newAdhoc = templateData.adhocTasks || ADHOC_TASKS_TEMPLATE;
+                  const data = templateSnapshot.data();
+                  newTemplate = data.weeklyTasks || WEEKLY_TASKS_TEMPLATE;
+                  newAdhoc = data.adhocTasks || ADHOC_TASKS_TEMPLATE;
+              } else {
+                  // OM mallen saknas i DB, spara den från koden för att Admin-läget ska kunna redigera den
+                  await templateDocRef.set({ weeklyTasks: newTemplate, adhocTasks: newAdhoc, lastUpdated: firebase.firestore.FieldValue.serverTimestamp() });
               }
 
               await initializeNewWeek(docRef, currentWeekId, newMissedList, newTemplate, newAdhoc);
@@ -821,7 +824,7 @@
                           <Calendar size={18} color="#eab308" /> {day}
                         </h2>
                         <span style={{fontSize: '12px', color: '#94a3b8', background: '#f1f5f9', padding: '2px 8px', borderRadius: '12px'}}>
-                          {tasksByDay[day]?.filter((t) => t.done).length || 0} / {tasksByDay[day]?.length || 0}
+                          {(tasksByDay[day] && tasksByDay[day].filter((t) => t.done).length || 0)} / {(tasksByDay[day] && tasksByDay[day].length || 0)}
                         </span>
                       </div>
                       <div className="task-list">
