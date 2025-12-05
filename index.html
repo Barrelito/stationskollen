@@ -530,6 +530,12 @@
         }
 
         // --- ICONS ---
+        const Trash2 = ({ size=24, color="currentColor" }) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
+    );
+    const Plus = ({ size=24, color="currentColor" }) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/></svg>
+    );
         const Ambulance = ({
             size = 24,
             color = "currentColor"
@@ -770,69 +776,162 @@
 
         // --- KOMPONENTER FÖR ADMINPANEL ---
 
-        // 1. KOMPONENT FÖR REDIGERING AV MALLAR
-        function TaskTemplateEditor({
-            weeklyTemplate,
-            adhocTemplate,
-            onSave,
-            isLoading
-        }) {
-            const [weeklyInput, setWeeklyInput] = useState(JSON.stringify(weeklyTemplate, null, 2));
-            const [adhocInput, setAdhocInput] = useState(JSON.stringify(adhocTemplate, null, 2));
-            const [error, setError] = useState(null);
+       // 1. GRAFISK KOMPONENT FÖR REDIGERING AV MALLAR
+    function TaskTemplateEditor({ weeklyTemplate, adhocTemplate, onSave, isLoading }) {
+      // Vi kopierar props till lokalt state för redigering
+      const [localWeekly, setLocalWeekly] = useState(weeklyTemplate || {});
+      const [localAdhoc, setLocalAdhoc] = useState(adhocTemplate || []);
+      
+      // Vilken flik är aktiv?
+      const [activeTab, setActiveTab] = useState('Monday');
 
-            // Uppdatera input när mallarna (externally) ändras
-            useEffect(() => {
-                setWeeklyInput(JSON.stringify(weeklyTemplate, null, 2));
-                setAdhocInput(JSON.stringify(adhocTemplate, null, 2));
-            }, [weeklyTemplate, adhocTemplate]);
+      // Svenska namn för flikarna
+      const daysMap = {
+        'Monday': 'Måndag',
+        'Tuesday': 'Tisdag',
+        'Wednesday': 'Onsdag',
+        'Thursday': 'Torsdag',
+        'Friday': 'Fredag',
+        'Saturday': 'Lördag', // Inkluderar lördag även om den är tom
+        'AdHoc': 'Vid behov/Övrigt'
+      };
 
-            const handleSave = () => {
-                setError(null);
-                try {
-                    const newWeekly = JSON.parse(weeklyInput);
-                    const newAdhoc = JSON.parse(adhocInput);
-                    onSave(newWeekly, newAdhoc);
-                } catch (e) {
-                    setError("Ogiltigt JSON-format. Kontrollera syntaxen i textrutorna.");
-                    console.error("JSON Parse Error:", e);
-                }
-            };
+      // Hjälpfunktion för att uppdatera en veckouppgift
+      const updateWeeklyTask = (day, index, newText) => {
+        const updatedDayList = [...(localWeekly[day] || [])];
+        updatedDayList[index] = { ...updatedDayList[index], text: newText };
+        setLocalWeekly({ ...localWeekly, [day]: updatedDayList });
+      };
 
-            return (
-                <div className="p-4">
-                    <h4 className="text-lg font-semibold mb-2">Veckovisa sysslor (JSON)</h4>
-                    <p className="text-sm text-gray-500 mb-2">Använd 'Monday', 'Tuesday', etc. som nycklar. ID:n måste vara unika. Uppdatera endast texten!</p>
-                    <textarea 
-                        className="json-editor" 
-                        value={weeklyInput} 
-                        onChange={(e) => setWeeklyInput(e.target.value)} 
-                    />
+      // Hjälpfunktion för att ta bort en veckouppgift
+      const removeWeeklyTask = (day, index) => {
+        const updatedDayList = [...(localWeekly[day] || [])];
+        updatedDayList.splice(index, 1);
+        setLocalWeekly({ ...localWeekly, [day]: updatedDayList });
+      };
 
-                    <h4 className="text-lg font-semibold mt-4 mb-2">Vid behov sysslor (JSON Array)</h4>
-                    <textarea 
-                        className="json-editor" 
-                        value={adhocInput} 
-                        onChange={(e) => setAdhocInput(e.target.value)} 
-                    />
+      // Hjälpfunktion för att lägga till en veckouppgift
+      const addWeeklyTask = (day) => {
+        const updatedDayList = [...(localWeekly[day] || [])];
+        // Skapa ett unikt ID baserat på tid
+        const newId = `${day.toLowerCase().slice(0,3)}_${Date.now()}`;
+        updatedDayList.push({ id: newId, text: '', day: daysMap[day] });
+        setLocalWeekly({ ...localWeekly, [day]: updatedDayList });
+      };
 
-                    {error && (
-                        <div className="demo-banner mt-4">
-                            <AlertCircle size={16} /> **Fel vid validering:** {error}
-                        </div>
-                    )}
+      // --- Samma logik fast för AdHoc-listan ---
+      const updateAdhocTask = (index, newText) => {
+        const updatedList = [...localAdhoc];
+        updatedList[index] = { ...updatedList[index], text: newText };
+        setLocalAdhoc(updatedList);
+      };
 
-                    <button 
-                        onClick={handleSave} 
-                        disabled={isLoading}
-                        className="btn-primary mt-4" 
-                        style={{backgroundColor: '#1e293b', gap: '8px'}}
-                    >
-                        {isLoading ? 'Sparar...' : <><Check size={18} /> Spara ändringar</>}
-                    </button>
+      const removeAdhocTask = (index) => {
+        const updatedList = [...localAdhoc];
+        updatedList.splice(index, 1);
+        setLocalAdhoc(updatedList);
+      };
+
+      const addAdhocTask = () => {
+        const newId = `ad_${Date.now()}`;
+        setLocalAdhoc([...localAdhoc, { id: newId, text: '', day: 'Vid behov', isAdHoc: true }]);
+      };
+
+      // Renderar listan för den aktiva fliken
+      const renderTaskList = () => {
+        if (activeTab === 'AdHoc') {
+          return (
+            <div className="flex flex-col gap-3">
+              {localAdhoc.map((task, index) => (
+                <div key={task.id} className="flex gap-2 items-center">
+                  <input 
+                    type="text" 
+                    value={task.text} 
+                    onChange={(e) => updateAdhocTask(index, e.target.value)}
+                    className="flex-1 p-3 border border-gray-300 rounded-lg focus:border-yellow-500 outline-none"
+                    placeholder="Beskriv sysslan..."
+                  />
+                  <button onClick={() => removeAdhocTask(index)} className="p-3 text-red-500 hover:bg-red-50 rounded-lg">
+                    <Trash2 size={20} />
+                  </button>
                 </div>
-            );
+              ))}
+              <button onClick={addAdhocTask} className="flex items-center justify-center gap-2 p-3 mt-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-yellow-500 hover:text-yellow-600 font-bold">
+                <Plus size={20} /> Lägg till "Vid behov"-syssla
+              </button>
+            </div>
+          );
+        } else {
+          // Vanlig veckodag
+          const tasks = localWeekly[activeTab] || [];
+          return (
+            <div className="flex flex-col gap-3">
+              {tasks.length === 0 && <p className="text-gray-400 italic text-center py-4">Inga sysslor inlagda för denna dag.</p>}
+              {tasks.map((task, index) => (
+                <div key={task.id} className="flex gap-2 items-center">
+                  <input 
+                    type="text" 
+                    value={task.text} 
+                    onChange={(e) => updateWeeklyTask(activeTab, index, e.target.value)}
+                    className="flex-1 p-3 border border-gray-300 rounded-lg focus:border-yellow-500 outline-none"
+                    placeholder="Beskriv sysslan..."
+                  />
+                  <button onClick={() => removeWeeklyTask(activeTab, index)} className="p-3 text-red-500 hover:bg-red-50 rounded-lg">
+                    <Trash2 size={20} />
+                  </button>
+                </div>
+              ))}
+              <button onClick={() => addWeeklyTask(activeTab)} className="flex items-center justify-center gap-2 p-3 mt-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-yellow-500 hover:text-yellow-600 font-bold">
+                <Plus size={20} /> Lägg till syssla för {daysMap[activeTab]}
+              </button>
+            </div>
+          );
         }
+      };
+
+      return (
+        <div className="flex flex-col h-full">
+          {/* FLIKAR */}
+          <div className="flex overflow-x-auto pb-2 mb-4 gap-2 border-b border-gray-200" style={{scrollbarWidth: 'none'}}>
+            {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map(day => (
+              <button 
+                key={day} 
+                onClick={() => setActiveTab(day)}
+                className={`px-4 py-2 rounded-full whitespace-nowrap text-sm font-bold transition-colors ${activeTab === day ? 'bg-slate-800 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+              >
+                {daysMap[day]}
+              </button>
+            ))}
+            <div className="w-px bg-gray-300 mx-1"></div>
+            <button 
+                onClick={() => setActiveTab('AdHoc')}
+                className={`px-4 py-2 rounded-full whitespace-nowrap text-sm font-bold transition-colors ${activeTab === 'AdHoc' ? 'bg-yellow-400 text-slate-900' : 'bg-yellow-50 text-yellow-700 hover:bg-yellow-100'}`}
+              >
+                {daysMap['AdHoc']}
+              </button>
+          </div>
+
+          {/* LISTA MED INPUTS */}
+          <div className="flex-1 mb-6">
+             <h4 className="text-lg font-bold mb-3">{daysMap[activeTab]}</h4>
+             {renderTaskList()}
+          </div>
+
+          {/* SPARA KNAPP */}
+          <div className="sticky bottom-0 bg-white pt-4 border-t border-gray-100">
+            <button 
+                onClick={() => onSave(localWeekly, localAdhoc)} 
+                disabled={isLoading}
+                className="btn-primary" 
+                style={{backgroundColor: '#22c55e', gap: '8px'}}
+            >
+                {isLoading ? 'Sparar...' : <><Check size={18} /> Publicera ändringar</>}
+            </button>
+            <p className="text-xs text-gray-400 text-center mt-2">Ändringar påverkar kommande veckor och vid omstart.</p>
+          </div>
+        </div>
+      );
+    }
 
         // 2. KOMPONENT FÖR HISTORIK
         function HistoryViewer({ db, appId }) {
@@ -1552,3 +1651,4 @@
 </body>
 
 </html>
+
