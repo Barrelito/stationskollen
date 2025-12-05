@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Stationssysslor</title>
   
-  <!-- 1. Hämta bibliotek (Bytt till Google CDN-länkar för att undvika CORS-problem) -->
-  <script src="https://ajax.googleapis.com/ajax/libs/react/18.2.0/umd/react.production.min.js" crossorigin></script>
-  <script src="https://ajax.googleapis.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js" crossorigin></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/6.26.0/babel.min.js"></script>
+  <!-- 1. Hämta bibliotek -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   
   <!-- Firebase -->
@@ -136,6 +136,7 @@
     const { useState, useEffect, useMemo } = React;
 
     // --- 1. STARTA FIREBASE ---
+    // HÄR ÄR DIN KONFIGURATION:
     const MANUAL_FIREBASE_CONFIG = {
       apiKey: "AIzaSyB8aujVryb93dqWxnQk2z3OOvgHQi5XY9A",
       authDomain: "stationssyor.firebaseapp.com",
@@ -148,6 +149,7 @@
 
     // Initiera bara om det inte redan är gjort
     if (typeof firebase !== 'undefined' && !firebase.apps.length) {
+      // Dubbelkolla att konfig finns innan start
       if (Object.keys(MANUAL_FIREBASE_CONFIG).length > 0) {
         firebase.initializeApp(MANUAL_FIREBASE_CONFIG);
       } else {
@@ -193,13 +195,15 @@
       Tuesday: [
         { id: 'tue_1', text: 'Storrengöring ambulansen 9410', day: 'Tisdag' },
         { id: 'tue_2', text: 'Storrengöring ambulansen 9420', day: 'Tisdag' },
-        { id: 'tue_3', text: 'Däckkontroll', day: 'Tisdag' },
+        { id: 'tue_3', text: 'Däckkontroll 9410', day: 'Tisdag' },
+        { id: 'tue_4', text: 'Däckkontroll 9420', day: 'Tisdag' },
+        { id: 'tue_5', text: 'Däckkontroll 9030', day: 'Tisdag' },
       ],
       Wednesday: [
         { id: 'wed_1', text: 'Rengöring Tvätthall', day: 'Onsdag' },
         { id: 'wed_2', text: 'Rensa och rengöra båda kylskåpen, kasta omärkt mat', day: 'Onsdag' },
         { id: 'wed_3', text: 'Torka bänkar, dörrar, lådor, rengör mikrovågsugnar och kaffebryggare', day: 'Onsdag' },
-        { id: 'wed_4', text: 'Storrengöring reservbil/Flexbil 9030', day: 'Onsdag' }, // NY UPPSALA
+       
       ],
       Thursday: [
         { id: 'thu_1', text: 'Storkontroll av ambulans 9410 enl. packplan', day: 'Torsdag' },
@@ -208,10 +212,9 @@
       ],
       Friday: [
         { id: 'fri_1', text: 'Rengöring vagnhall', day: 'Fredag' },
+         { id: 'fri_2', text: 'Storrengöring reservbil/Flexbil 9030', day: 'Fredag' }, 
       ],
-      Saturday: [
-        { id: 'sat_1', text: 'Provstarta 9030 (Endast Provstart)', day: 'Lördag' }, // ÄNDRAD LÖRDAG
-      ]
+      
     };
 
     const ADHOC_TASKS = [
@@ -252,6 +255,7 @@
       const appId = 'station-app';
       
       const db = useMemo(() => {
+        // Om ingen config finns, returnera null istället för att krascha
         if (Object.keys(MANUAL_FIREBASE_CONFIG).length === 0) return null;
         return firebase.firestore();
       }, []);
@@ -262,12 +266,14 @@
       }, []);
 
       useEffect(() => {
+        // Om config saknas, gå direkt till demo
         if (!auth) {
           setIsDemoMode(true);
           setDemoError("Ingen databaskoppling hittades (konfiguration saknas).");
           return;
         }
 
+        // Logga in anonymt
         const initAuth = async () => {
           try {
             await auth.signInAnonymously();
@@ -299,6 +305,7 @@
 
         if (!user || !db) return;
         
+        // Hämta data från Firestore
         const docRef = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('chores').doc('current_state');
 
         const unsubscribe = docRef.onSnapshot(async (snapshot) => {
@@ -441,7 +448,10 @@
         return acc;
       }, {});
       
+      // Ordning på dagar, inklusive den nya Måndagen
       const orderedDays = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lördag'];
+      
+      // Filtera bort dagar utan uppgifter (t.ex. Söndag/Lördag om de blir tomma)
       const visibleDays = orderedDays.filter(day => tasksByDay[day] && tasksByDay[day].length > 0);
 
       const adHocTasks = tasks.filter((t) => t.isAdHoc);
@@ -544,7 +554,7 @@
             ))}
             
             {/* Söndag - FRI AKTIVITET, visa bara om Lördag är tom, annars döljs den. */}
-            {(!tasksByDay['Lördag'] || tasksByDay['Lördag'].length === 0) && (
+            {!tasksByDay['Lördag'] && (
                  <div key="Söndag" className="card">
                     <div className="card-header">
                        <h2 className="card-title">
