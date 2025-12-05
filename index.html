@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Stationssysslor TEST</title>
+  <title>Stationssysslor</title>
   
   <!-- 1. Hämta bibliotek (Återgår till de mest stabila CDN-länkarna) -->
   <script type="text/javascript" src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin="anonymous"></script>
@@ -691,7 +691,7 @@
 
           useEffect(() => {
               if (isDemoMode) {
-                  setHistoryList([{ id: '2024-W40', date: '2024-10-01', summary: 'Demodata: 5/10 klarade.' }]);
+                  setHistoryList([{ id: '2024-W40', savedAt: new firebase.firestore.Timestamp(1696204800, 0), summary: 'Demodata: 5/10 klarade.' }]); // Använd Timestamp
                   return;
               }
 
@@ -726,6 +726,15 @@
               acc[task.day].push(task);
               return acc;
           }, {});
+          
+          // Hjälpfunktion för att formatera datum säkert
+          const formatDate = (timestamp) => {
+              if (timestamp && timestamp.toDate) {
+                  return timestamp.toDate().toLocaleDateString('sv-SE');
+              }
+              return 'Okänt datum';
+          };
+
 
           return (
               <div style={{ padding: '16px', maxWidth: '800px', margin: '0 auto' }}>
@@ -735,7 +744,7 @@
                       <option value="">Välj vecka att granska...</option>
                       {historyList.map(week => (
                           <option key={week.id} value={week.id}>
-                              {week.id} (Sparad {week.savedAt?.toDate().toLocaleDateString('sv-SE')})
+                              {week.id} (Sparad {formatDate(week.savedAt)})
                           </option>
                       ))}
                   </select>
