@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stationsvy - AISAB</title>
+
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+    <style>
+        body { 
+            background-color: #0f172a; /* Mörk bakgrund ser proffsigare ut på TV */
+            color: #f8fafc;
+            font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+            overflow: hidden; /* Förhindra scroll om möjligt */
+            padding: 20px;
+        }
+        
+        .tv-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 20px;
+            height: calc(100vh - 120px);
+        }
+
+        .day-card {
+            background: rgba(30, 41, 59, 0.7);
+            border: 2px solid #334155;
+            border-radius: 16px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .task-row {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 12px 0;
+            border-bottom: 1px solid #334155;
+        }
+
+        .task-row.done {
+            opacity: 0.5;
+        }
+
+        .checkbox-tv {
+            width: 30px;
+            height: 30px;
+            border-radius: 8px;
+            border: 3px solid #facc15;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .checkbox-tv.checked {
+            background: #22c55e;
+            border-color: #22c55e;
+        }
+
+        .task-text {
+            font-size: 20px; /* Stor text för TV */
+            font-weight: 600;
+        }
+
+        .signer {
+            font-size: 14px;
+            color: #94a3b8;
+            margin-top: 4px;
+        }
+
+        .header-tv {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding: 0 10px;
+        }
+
+        .missed-alert {
+            background: #ef4444;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 12px;
+            font-weight: bold;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+
+        // Firebase Config (Samma som din originalfil)
+        const CONFIG = {
+            apiKey: "AIzaSyB8aujVryb93dqWxnQk2z3OOvgHQi5XY9A",
+            authDomain: "stationssyor.firebaseapp.com",
+            projectId: "stationssyor",
+            storageBucket: "stationssyor.firebasestorage.app",
+            messagingSenderId: "628579465876",
+            appId: "1:628579465876:web:dc868450ef2e13e8b1d281"
+        };
+
+        if (!firebase.apps.length) firebase.initializeApp(CONFIG);
+        const db = firebase.firestore();
+
+        function getISOWeek() {
+            const d = new Date();
+            d.setHours(0, 0, 0, 0);
+            d.setDate(d.getDate() + 4 - (d.getDay() || 7));
+            return Math.ceil((((d - new Date(d.getFullYear(), 0, 1)) / 86400000) + 1) / 7);
+        }
+
+        function StationTV() {
+            const [tasks, setTasks] = useState([]);
+            const [missed, setMissed] = useState([]);
+            const weekNum = getISOWeek();
+
+            useEffect(() => {
+                const unsubscribe = db.collection('artifacts').doc('station-app')
+                    .collection('public').doc('data').collection('chores').doc('current_state')
+                    .onSnapshot(snapshot => {
+                        if (snapshot.exists) {
+                            const data = snapshot.data();
+                            setTasks(data.tasks || []);
+                            setMissed(data.missedTasks || []);
+                        }
+                    });
+                return () => unsubscribe();
+            }, []);
+
+            const tasksByDay = tasks.reduce((acc, task) => {
+                if (task.isAdHoc) return acc;
+                if (!acc[task.day]) acc[task.day] = [];
+                acc[task.day].push(task);
+                return acc;
+            }, {});
+
+            const days = ['Måndag', 'Tisdag', 'Onsdag', 'Torsdag', 'Fredag'];
+
+            return (
+                <div>
+                    <div className="header-tv">
+                        <div className="flex items-center gap-4">
+                            <div className="bg-yellow-400 p-3 rounded-xl">
+                                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#0f172a" strokeWidth="2.5"><path d="M10 10l6 0M13 7l0 6M19 14.286c0 1.257 -.416 2.404 -1.134 3.29c-1.134 1.401 -3.109 2.424 -5.866 2.424s-4.732 -1.023 -5.866 -2.423c-.718 -.887 -1.134 -2.034 -1.134 -3.291c0 -2.628 3.134 -4.286 7 -4.286s7 1.658 7 4.286z" /></svg>
+                            </div>
+                            <div>
+                                <h1 className="text-4xl font-black">STATIONSSYSSLOR</h1>
+                                <p className="text-yellow-400 font-bold text-xl">VECKA {weekNum}</p>
+                            </div>
+                        </div>
+                        {missed.filter(t => !t.done).length > 0 && (
+                            <div className="missed-alert">
+                                {missed.filter(t => !t.done).length} SLÄPANDE UPPGIFTER
+                            </div>
+                        )}
+                        <div className="text-right">
+                            <div className="text-3xl font-mono">{new Date().toLocaleTimeString('sv-SE', {hour: '2-digit', minute:'2-digit'})}</div>
+                            <div className="text-slate-400">{new Date().toLocaleDateString('sv-SE', {weekday: 'long', day: 'numeric', month: 'short'})}</div>
+                        </div>
+                    </div>
+
+                    <div className="tv-grid">
+                        {days.map(day => (
+                            <div key={day} className="day-card">
+                                <h2 className="text-2xl font-bold mb-4 flex justify-between">
+                                    {day}
+                                    <span className="text-sm bg-slate-700 px-3 py-1 rounded-full">
+                                        {tasksByDay[day]?.filter(t=>t.done).length || 0}/{tasksByDay[day]?.length || 0}
+                                    </span>
+                                </h2>
+                                <div className="flex-1">
+                                    {tasksByDay[day]?.map(task => (
+                                        <div key={task.id} className={`task-row ${task.done ? 'done' : ''}`}>
+                                            <div className={`checkbox-tv ${task.done ? 'checked' : ''}`}>
+                                                {task.done && <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4"><polyline points="20 6 9 17 4 12" /></svg>}
+                                            </div>
+                                            <div>
+                                                <div className="task-text">{task.text}</div>
+                                                {task.signedBy && <div className="signer">Sign: {task.signedBy}</div>}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<StationTV />);
+    </script>
+</body>
+</html>
