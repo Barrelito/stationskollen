@@ -588,15 +588,24 @@
                         await initializeNewWeek(docRef, currentWeekId, []);
                     } else {
                         const data = snapshot.data();
-                        if (data.weekId !== currentWeekId) {
-                            await saveNewWeekSnapshot(data); 
-                            const previousTasks = data.tasks || [];
-                            const notDone = previousTasks.filter((t) => !t.done && !t.isAdHoc);
-                            const oldMissed = data.missedTasks || [];
-                            const oldMissedStillNotDone = oldMissed.filter((t) => !t.done);
-                            const newMissedList = [...oldMissedStillNotDone, ...notDone.map((t) => ({ ...t, originalWeek: data.weekId, isMissed: true }))];
-                            await initializeNewWeek(docRef, currentWeekId, newMissedList);
-                        } else {
+                       // NY KOD (Stapelfunktion inaktiverad)
+if (data.weekId !== currentWeekId) {
+    await saveNewWeekSnapshot(data); 
+    
+    // --- BORTKOMMENTERAD STAPEL-FUNKTION ---
+    // Funktionen nedan är inaktiverad för att undvika att ogjorda sysslor staplas på varandra.
+    // const previousTasks = data.tasks || [];
+    // const notDone = previousTasks.filter((t) => !t.done && !t.isAdHoc);
+    // const oldMissed = data.missedTasks || [];
+    // const oldMissedStillNotDone = oldMissed.filter((t) => !t.done);
+    // const newMissedList = [...oldMissedStillNotDone, ...notDone.map((t) => ({ ...t, originalWeek: data.weekId, isMissed: true }))];
+    // await initializeNewWeek(docRef, currentWeekId, newMissedList);
+    // ----------------------------------------
+
+    // Vi skapar den nya veckan och skickar med en tom array [] 
+    // så att inga gamla uppgifter följer med.
+    await initializeNewWeek(docRef, currentWeekId, []);
+} else {
                             setTasks(data.tasks || []);
                             setMissedTasks(data.missedTasks || []);
                         }
@@ -843,3 +852,4 @@
     </script>
 </body>
 </html>
+
